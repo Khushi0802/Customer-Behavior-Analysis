@@ -2,37 +2,37 @@ drop table if exists goldusers_signup;
 CREATE TABLE goldusers_signup(userid integer,gold_signup_date date); 
 
 INSERT INTO goldusers_signup(userid,gold_signup_date) 
- VALUES (1,'09-22-2017'),
-(3,'04-21-2017');
+ VALUES (1,'22-09-2017'),
+(3,'21-04-2017');
 
 drop table if exists users;
 CREATE TABLE users(userid integer,signup_date date); 
 
 INSERT INTO users(userid,signup_date) 
- VALUES (1,'09-02-2014'),
-(2,'01-15-2015'),
-(3,'04-11-2014');
+ VALUES (1,'02-09-2014'),
+(2,'15-01-2015'),
+(3,'11-04-2014');
 
 drop table if exists sales;
 CREATE TABLE sales(userid integer,created_date date,product_id integer); 
 
 INSERT INTO sales(userid,created_date,product_id) 
  VALUES (1,'04-19-2017',2),
-(3,'12-18-2019',1),
-(2,'07-20-2020',3),
-(1,'10-23-2019',2),
-(1,'03-19-2018',3),
-(3,'12-20-2016',2),
-(1,'11-09-2016',1),
-(1,'05-20-2016',3),
-(2,'09-24-2017',1),
-(1,'03-11-2017',2),
-(1,'03-11-2016',1),
-(3,'11-10-2016',1),
-(3,'12-07-2017',2),
-(3,'12-15-2016',2),
-(2,'11-08-2017',2),
-(2,'09-10-2018',3);
+(3,'18-12-2019',1),
+(2,'20-07-2020',3),
+(1,'23-10-2019',2),
+(1,'19-03-2018',3),
+(3,'20-12-2016',2),
+(1,'09-11-2016',1),
+(1,'20-05-2016',3),
+(2,'24-09-2017',1),
+(1,'11-03-2017',2),
+(1,'11-03-2016',1),
+(3,'10-11-2016',1),
+(3,'07-12-2017',2),
+(3,'15-12-2016',2),
+(2,'08-11-2017',2),
+(2,'10-09-2018',3);
 
 
 drop table if exists product;
@@ -54,91 +54,195 @@ select * from users;
 
 1 ---- what is total amount each customer spent on zomato ?
 
-select a.userid,sum(b.price) total_amt_spent from sales a inner join product b on a.product_id=b.product_id
-group by a.userid
+Select s.userid, SUM(p.price) as total_amount_spent
+from sales s
+inner join product p
+on s.product_id=p.product_id
+group by s.userid
 
 
 2 ---- How many days has each customer visited zomato?
 
-select userid,count(distinct created_date) distinct_days
-from sales 
-group by userid;
+SELECT userid, COUNT(DISTINCT created_date) as distinct_days
+from sales
+group by userid
 
 
 3 --- what was the first product purchased by each customer?
 
-select * from
-(select*,rank() over (partition by userid order by created_date ) rnk from sales) a where rnk = 1
+select *
+from (
+	select *, RANK() OVER (Partition by userid order by created_date asc) as rnk
+	from sales
+) s
+where rnk=1;
 
 
 4 --- what is most purchased item on menu & how many times was it purchased by all customers ?
 
-select userid,count(product_id) cnt from sales where product_id =
-(select top 1 product_id from sales group by product_id order by count(product_id) desc)
-group by userid
+SELECT product_id, COUNT(*) AS total_purchases
+FROM sales
+GROUP BY product_id
+ORDER BY COUNT(*) DESC
+LIMIT 1;
 
 
 5 ---- which item was most popular for each customer?
 
-select * from
-(select *,rank() over(partition by userid order by cnt desc) rnk from
-(select userid,product_id,count(product_id) cnt from sales group by userid,product_id)a)b
-where rnk =1
+SELECT * 
+FROM (SELECT *, RANK() OVER (PARTITION BY userid ORDER BY cnt DESC) AS rnk
+    FROM (SELECT userid, product_id, COUNT(product_id) AS cnt 
+        FROM sales 
+        GROUP BY userid, product_id
+    ) a
+) b	
+where rnk =1;
 
 
 6 --- which item was purchased first by customer after they become a member ?
 
-select * from
-(select c.*,rank() over (partition by userid order by created_date ) rnk from
-(select a.userid,a.created_date,a.product_id,b.gold_signup_date from sales a inner join 
-goldusers_signup b on a.userid=b.userid and created_date>=gold_signup_date) c)d where rnk=1;
+SELECT * 
+FROM (
+    SELECT a.*, RANK() OVER (PARTITION BY userid ORDER BY created_date) AS rnk 
+    FROM (
+        SELECT s.userid, s.created_date, s.product_id, g.gold_signup_date 
+        FROM sales as s
+        INNER JOIN goldusers_signup g 
+        ON s.userid = g.userid 
+        AND s.created_date >= g.gold_signup_date
+    ) a
+) b 
+WHERE rnk = 1;
 
 
 7 --- which item was purchased just before customer became a member?
 
-select * from
-(select c.*,rank() over (partition by userid order by created_date desc ) rnk from
-(select a.userid,a.created_date,a.product_id,b.gold_signup_date from sales a inner join 
-goldusers_signup b on a.userid=b.userid and created_date<=gold_signup_date) c)d where rnk=1;
+SELECT * 
+FROM (
+    SELECT c.*, RANK() OVER (PARTITION BY userid ORDER BY created_date DESC) AS rnk 
+    FROM (
+        SELECT a.userid, a.created_date, a.product_id, b.gold_signup_date 
+        FROM sales a 
+        INNER JOIN goldusers_signup b 
+        ON a.userid = b.userid 
+        AND a.created_date <= b.gold_signup_date
+    ) c
+) d 
+WHERE rnk = 1;
 
 
 8 ---- what is total orders and amount spent for each member before they become a member ?
 
-select userid,count(created_date) order_purchased,sum(price) total_amt_spent from
-(select c.*,d.price from
-(select a.userid,a.created_date,a.product_id,b.gold_signup_date from sales a inner join 
-goldusers_signup b on a.userid=b.userid and created_date<=gold_signup_date) c inner join product d on c.product_id=d.product_id)e
-group by userid;
+SELECT userid, COUNT(created_date) AS order_purchased, SUM(price) AS total_amt_spent 
+FROM (SELECT  c.*, d.price 
+    FROM (SELECT s.userid, s.created_date, s.product_id, g.gold_signup_date 
+        FROM sales s 
+        INNER JOIN goldusers_signup g 
+        ON s.userid = g.userid 
+        AND s.created_date <= g.gold_signup_date
+    ) c 
+    INNER JOIN 
+        product d 
+    ON 
+        c.product_id = d.product_id
+) e 
+GROUP BY userid;
 
 
 9 --- if buying each product generate points for eg 5rs=2 zomato point and each product has different purchasing points 
 -- for eg for p1 5rs=1 zomato point,for p2 10rs=zomato point and p3 5rs=1 zomato point  2rs =1zomato point
 ,--calculate points collected by each customers and for which product most points have been given till now.
 
-select userid,sum(total_points)*2.5  total_point_earned from 
-(select e.*,amt/points total_points from 
-(select d.*,case when product_id=1 then 5 when product_id=2 then 2 when product_id=3 then 5 else 0 end as points from 
-(select c.userid,c.product_id,sum(price) amt from 
-(select a.*,b.price from sales a inner join product b on a.product_id=b.product_id)c
-group by userid,product_id)d)e)f group by userid;
+SELECT userid, SUM(total_points) * 2.5 AS total_point_earned 
+FROM (SELECT e.*, amt / points AS total_points 
+    FROM (SELECT d.*, 
+	CASE 
+	WHEN product_id = 1 THEN 5  
+	WHEN product_id = 2 THEN 2  
+	WHEN product_id = 3 THEN 5  
+	ELSE 0 
+	END AS points 
+  FROM ( SELECT c.userid, c.product_id, SUM(price) AS amt 
+       FROM (SELECT s.*, p.price 
+             FROM sales s 
+             INNER JOIN product p 
+             ON s.product_id = p.product_id
+            ) c 
+  GROUP BY userid, product_id
+   ) d
+  ) e
+) f 
+GROUP BY userid;
 
 
-select * from
-(select * , rank() over (order by  total_point_earned desc) rnk from
-(select product_id,sum(total_points)  total_point_earned from 
-(select e.*,amt/points total_points from 
-(select d.*,case when product_id=1 then 5 when product_id=2 then 2 when product_id=3 then 5 else 0 end as points from 
-(select c.userid,c.product_id,sum(price) amt from 
-(select a.*,b.price from sales a inner join product b on a.product_id=b.product_id)c
-group by userid,product_id)d)e)f group by product_id)f)g where rnk=1;
+SELECT userid, SUM(total_points) * 2.5 AS total_point_earned 
+FROM (SELECT e.*, amt / points AS total_points 
+    FROM (SELECT d.*, 
+	CASE 
+	WHEN product_id = 1 THEN 5  
+	WHEN product_id = 2 THEN 2  
+	WHEN product_id = 3 THEN 5  
+	ELSE 0 
+	END AS points 
+  FROM ( SELECT c.userid, c.product_id, SUM(price) AS amt 
+       FROM (SELECT s.*, p.price 
+             FROM sales s 
+             INNER JOIN product p 
+             ON s.product_id = p.product_id
+            ) c 
+  GROUP BY userid, product_id
+   ) d
+  ) e
+) f 
+GROUP BY userid;
+
+SELECT * 
+FROM (SELECT *, RANK() OVER (ORDER BY total_point_earned DESC) AS rnk 
+    FROM (SELECT product_id, SUM(total_points) AS total_point_earned 
+        FROM (SELECT e.*, amt / points AS total_points 
+            FROM (SELECT d.*, 
+	CASE 
+     WHEN product_id = 1 THEN 5 
+     WHEN product_id = 2 THEN 2 
+     WHEN product_id = 3 THEN 5 
+     ELSE 0 
+     END AS points 
+   FROM (SELECT c.userid, c.product_id, SUM(price) AS amt 
+   		FROM (SELECT s.*, p.price 
+                FROM sales s 
+                INNER JOIN product p 
+                ON s.product_id = p.product_id
+   ) c 
+   GROUP BY userid, product_id
+    ) d
+   ) e
+ ) f 
+ GROUP BY product_id
+  ) f
+) g 
+WHERE rnk = 1;
 
 
 
-select e.*,amt/points total_points from 
-(select d.*,case when product_id=1 then 5 when product_id=2 then 2 when product_id=3 then 5 else 0 end as points from 
-(select c.userid,c.product_id,sum(price) amt from 
-(select a.*,b.price from sales a inner join product b on a.product_id=b.product_id)c
-group by userid,product_id)d)e
+
+SELECT e.*, amt / points AS total_points 
+FROM (SELECT d.*, 
+    CASE 
+    WHEN product_id = 1 THEN 5 
+    WHEN product_id = 2 THEN 2 
+    WHEN product_id = 3 THEN 5 
+    ELSE 0 
+	END AS points 
+ FROM (SELECT c.userid, c.product_id, SUM(price) AS amt 
+    FROM (SELECT s.*, p.price 
+     FROM sales s 
+     INNER JOIN product p 
+    ON s.product_id = p.product_id
+    ) c 
+   GROUP BY userid, product_id
+    ) d
+) e;
+
 
 
 10 --- in the first one year after customer joins the gold program (including the join date ) irrespective of 
@@ -147,22 +251,22 @@ group by userid,product_id)d)e
 
 
 
-select c.*,d.price*0.5 total_points_earned from
-(select a.userid,a.created_date,a.product_id,b.gold_signup_date from sales a inner join
-goldusers_signup b on a.userid=b.userid and created_date>=gold_signup_date and created_date<=Dateadd(year,1,gold_signup_date))c
-inner join product d on c.product_id=d.product_id;
+SELECT c.userid, SUM(p.price * 0.5) AS total_points_earned
+FROM (SELECT s.userid, s.created_date, s.product_id, g.gold_signup_date
+    FROM sales s
+    INNER JOIN goldusers_signup g
+    ON s.userid = g.userid
+    WHERE s.created_date >= g.gold_signup_date
+      AND s.created_date <= g.gold_signup_date + INTERVAL '1 year'
+) c
+INNER JOIN product p
+ON c.product_id = p.product_id
+GROUP BY c.userid;
 
 
 
 11 --- rnk all transaction of the customers
 
 
-select*,rank() over (partition by userid order by created_date ) rnk from sales;
-
-
-12 --- rank all transaction for each member whenever they are zomato gold member for every non gold member transaction mark as na
-
-select e.*,case when rnk=0 then 'na' else rnk end as rnkk from
-(select c.*,cast((case when gold_signup_date is null then 0  else rank() over (partition by userid order by created_date desc) end) as varchar) as rnk from
-(select a.userid,a.created_date,a.product_id,b.gold_signup_date from sales a left join
-goldusers_signup b on a.userid=b.userid and created_date>=gold_signup_date)c)e;
+SELECT *, RANK() over (partition by userid order by created_date ) rnk 
+	From sales;
