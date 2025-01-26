@@ -150,7 +150,7 @@ GROUP BY userid;
 
 
 
-10 --- in the first one year after customer joins the gold program (including the join date ) irrespective of 
+9 --- in the first one year after customer joins the gold program (including the join date ) irrespective of 
   --  what customer has purchased earn 5 zomato points for every 10rs spent who earned more more 1 or 3
    -- what int earning in first yr ? 1zp = 2rs
 
@@ -170,7 +170,7 @@ GROUP BY c.userid;
 
 
 
-11 --- rnk all transaction of the customers
+10 --- rnk all transaction of the customers
 
 
 SELECT *, RANK() over (partition by userid order by created_date ) rnk 
